@@ -1,0 +1,5 @@
+{
+  "name": "Fractal Mind: Gemini Mandelbrot Explorer",
+  "description": "A high-performance Mandelbrot fractal explorer integrated with Gemini AI. Discover infinite mathematical beauty through interactive zooming and AI-guided navigation of fractal landmarks like Seahorse Valley and the Elephant Valley.",
+  "requestFramePermissions": []
+}
