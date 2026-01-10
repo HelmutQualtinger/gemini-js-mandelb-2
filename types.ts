@@ -8,6 +8,7 @@ export interface Viewport {
 export interface FractalParams {
   maxIterations: number;
   palette: string;
+  paletteRepeat: number;
 }
 
 export interface ChatMessage {
@@ -34,5 +35,15 @@ export enum PaletteType {
   FOREST = 'forest',
   OCEAN = 'ocean',
   GOLDEN = 'golden',
-  COSMIC = 'cosmic'
+  COSMIC = 'cosmic',
+  ZEBRA = 'zebra',
+  CYBERPUNK = 'cyberpunk',
+  TOXIC = 'toxic',
+  MAGMA = 'magma',
+  VOID = 'void',
+  SYNTHWAVE = 'synthwave',
+  PEACOCK = 'peacock',
+  RUBY = 'ruby',
+  EMERALD = 'emerald',
+  OBSIDIAN = 'obsidian'
 }

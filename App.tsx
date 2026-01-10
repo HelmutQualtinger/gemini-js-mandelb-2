@@ -5,31 +5,44 @@ import { Viewport, PaletteType, Discovery, ChatMessage } from './types';
 import { getDiscoveryInfo } from './services/geminiService';
 
 const PALETTE_GRADIENTS: Record<PaletteType, string> = {
-  [PaletteType.FIRE]: 'linear-gradient(to right, #000, #f00, #ff0, #fff)',
-  [PaletteType.ULTRAVIOLET]: 'linear-gradient(to right, #4c1d95, #d946ef, #6366f1)',
-  [PaletteType.GLACIER]: 'linear-gradient(to right, #001f3f, #0074d9, #7fdbff, #ffffff)',
-  [PaletteType.CLASSIC]: 'linear-gradient(to right, #000, #888, #fff)',
+  [PaletteType.FIRE]: 'linear-gradient(to right, #000, #ff4d00, #ffcc00, #fff)',
+  [PaletteType.ULTRAVIOLET]: 'linear-gradient(to right, #6d28d9, #f472b6, #38bdf8)',
+  [PaletteType.GLACIER]: 'linear-gradient(to right, #003366, #3399ff, #ccf2ff, #ffffff)',
+  [PaletteType.CLASSIC]: 'linear-gradient(to right, #000, #aaa, #fff)',
   [PaletteType.ELECTRIC]: 'linear-gradient(to right, #0000ff, #00ffff, #ffffff)',
-  [PaletteType.NEON]: 'linear-gradient(to right, #ff00ff, #00ffff, #000000)',
-  [PaletteType.SUNSET]: 'linear-gradient(to right, #ff4500, #ffa500, #00008b)',
-  [PaletteType.FOREST]: 'linear-gradient(to right, #002200, #008800, #88ff88)',
-  [PaletteType.OCEAN]: 'linear-gradient(to right, #000033, #0000aa, #aaffff)',
-  [PaletteType.GOLDEN]: 'linear-gradient(to right, #332200, #aa8800, #ffff88)',
-  [PaletteType.COSMIC]: 'linear-gradient(to right, #220033, #8800ff, #ff88ff)'
+  [PaletteType.NEON]: 'linear-gradient(to right, #ff00ff, #00ffff, #ffffff)',
+  [PaletteType.SUNSET]: 'linear-gradient(to right, #ff0000, #ff8c00, #ffd700)',
+  [PaletteType.FOREST]: 'linear-gradient(to right, #003300, #00cc00, #ccffcc)',
+  [PaletteType.OCEAN]: 'linear-gradient(to right, #000066, #0066cc, #99ffff)',
+  [PaletteType.GOLDEN]: 'linear-gradient(to right, #443300, #ffcc00, #ffff99)',
+  [PaletteType.COSMIC]: 'linear-gradient(to right, #330066, #cc00ff, #ff99ff)',
+  [PaletteType.ZEBRA]: 'repeating-linear-gradient(to right, #000, #000 5px, #fff 5px, #fff 10px)',
+  [PaletteType.CYBERPUNK]: 'linear-gradient(to right, #000, #ff00ff, #00ffff)',
+  [PaletteType.TOXIC]: 'linear-gradient(to right, #000, #00ff00)',
+  [PaletteType.MAGMA]: 'linear-gradient(to right, #000, #800000, #ff4500, #ffff00)',
+  [PaletteType.VOID]: 'linear-gradient(to right, #000010, #ffffff)',
+  [PaletteType.SYNTHWAVE]: 'linear-gradient(to right, #240b36, #c31432, #ed1e79, #240b36)',
+  [PaletteType.PEACOCK]: 'linear-gradient(to right, #000, #00a896, #02c39a, #f0f3bd)',
+  [PaletteType.RUBY]: 'linear-gradient(to right, #300, #900, #f00, #fff)',
+  [PaletteType.EMERALD]: 'linear-gradient(to right, #020, #050, #0a0, #ff0)',
+  [PaletteType.OBSIDIAN]: 'linear-gradient(to right, #000, #111, #333, #0cf)'
 };
 
 const App: React.FC = () => {
   const [viewport, setViewport] = useState<Viewport>({ x: -0.5, y: 0, zoom: 1 });
-  const [maxIterations, setMaxIterations] = useState(150);
+  const [maxIterations, setMaxIterations] = useState(250);
   const [palette, setPalette] = useState<PaletteType>(PaletteType.FIRE);
+  const [paletteRepeat, setPaletteRepeat] = useState(1);
   const [chatInput, setChatInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hoverInfo, setHoverInfo] = useState<{ re: number; im: number; iterations: number } | null>(null);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const canvasRef = useRef<MandelbrotCanvasHandle>(null);
+  const [isControlsVisible, setIsControlsVisible] = useState(false);
+  
   const paletteRef = useRef<HTMLDivElement>(null);
+  const canvasHandleRef = useRef<MandelbrotCanvasHandle>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -45,25 +58,43 @@ const App: React.FC = () => {
     setViewport(newView);
   }, []);
 
-  const handleExport8K = async () => {
-    if (!canvasRef.current || isExporting) return;
-    setIsExporting(true);
+  const stopEvent = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleZoomOut = (e: React.MouseEvent) => {
+    stopEvent(e);
+    setViewport(prev => ({ ...prev, zoom: prev.zoom * 0.5 }));
+  };
+
+  const handleCapture8K = async (e: React.MouseEvent) => {
+    stopEvent(e);
+    if (!canvasHandleRef.current) return;
+    setIsCapturing(true);
     try {
-      // 8K Resolution: 7680 x 4320
-      const blob = await canvasRef.current.captureHighRes(7680, 4320);
+      const blob = await canvasHandleRef.current.captureHighRes(7680, 4320);
+      const isHeic = blob.type.includes('heic') || blob.type.includes('heif');
+      const extension = isHeic ? 'heic' : 'png';
+      
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `fractal_8k_${viewport.x.toFixed(6)}_${viewport.y.toFixed(6)}_z${viewport.zoom.toExponential(2)}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fractal_8k_${Date.now()}.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Export failed:", err);
-      alert("Failed to export 8K image. Your browser or GPU might limit offscreen canvas size.");
+
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: isHeic 
+          ? "8K Ultra-HD Capture complete. Image saved in Apple HEIC format."
+          : "8K Ultra-HD Capture complete. Note: Your browser doesn't support HEIC encoding, so I've saved a lossless PNG instead."
+      }]);
+    } catch (error) {
+      console.error("Capture failed", error);
     } finally {
-      setIsExporting(false);
+      setIsCapturing(false);
     }
   };
 
@@ -95,174 +126,263 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black text-white selection:bg-purple-500/30">
-      {/* Fractal Engine */}
       <MandelbrotCanvas 
-        ref={canvasRef}
+        ref={canvasHandleRef}
         viewport={viewport} 
         maxIterations={maxIterations} 
         palette={palette}
+        paletteRepeat={paletteRepeat}
         onViewChange={handleViewChange}
         onHover={setHoverInfo}
       />
 
-      {/* Overlays */}
-      <div className="absolute top-6 left-6 z-10 space-y-4 pointer-events-none">
-        <div className="pointer-events-auto bg-black/60 backdrop-blur-md border border-white/10 p-4 rounded-xl shadow-2xl w-80">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Fractal Mind
-          </h1>
-          <p className="text-xs text-white/50 mt-1 uppercase tracking-widest font-semibold">Gemini Explorer</p>
-          
-          <div className="mt-6 space-y-4">
+      {isCapturing && (
+        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-500">
+          <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
+          <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">Processing 8K Ultra-HD</h2>
+          <p className="text-sm text-white/40 font-mono mt-2 animate-pulse">Rendering 33 Million Double-Precision Iterations...</p>
+        </div>
+      )}
+
+      {/* Mobile Control Toggle */}
+      {!isControlsVisible && (
+        <button
+          onClick={() => setIsControlsVisible(true)}
+          className="lg:hidden absolute top-6 left-6 z-20 bg-black/60 backdrop-blur-xl border border-white/20 p-4 rounded-2xl shadow-2xl flex items-center gap-3 active:scale-95 transition-all"
+        >
+          <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          <span className="text-xs font-black uppercase tracking-widest text-white/80">Telemetry</span>
+        </button>
+      )}
+
+      <div className={`absolute top-0 lg:top-6 left-0 lg:left-6 z-30 h-full lg:h-auto w-full lg:w-80 space-y-4 pointer-events-none transition-transform duration-300 ${isControlsVisible ? 'translate-x-0' : 'max-lg:-translate-x-full'}`}>
+        <div 
+          className="pointer-events-auto bg-black/90 lg:bg-black/70 backdrop-blur-2xl lg:backdrop-blur-xl border-r lg:border border-white/10 p-5 lg:rounded-2xl shadow-2xl h-full lg:h-auto w-full lg:w-80 overflow-y-auto lg:overflow-visible no-scrollbar" 
+          onMouseDown={stopEvent}
+          onMouseUp={stopEvent}
+          onClick={stopEvent}
+        >
+          <div className="flex justify-between items-start mb-6">
             <div>
-              <label className="text-[10px] uppercase text-white/40 block mb-1">Precision (Iterations)</label>
+              <h1 className="text-2xl font-black bg-gradient-to-br from-blue-300 via-purple-400 to-pink-500 bg-clip-text text-transparent italic tracking-tighter">
+                Fractal Mind
+              </h1>
+              <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Vivid Explorer</p>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleZoomOut}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 p-2 rounded-lg transition-colors group"
+                title="Zoom Out"
+              >
+                <svg className="w-4 h-4 text-white/60 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+                </svg>
+              </button>
+              <button 
+                onClick={() => setIsControlsVisible(false)}
+                className="lg:hidden bg-white/5 hover:bg-red-500/20 border border-white/10 p-2 rounded-lg transition-colors group"
+              >
+                <svg className="w-4 h-4 text-white/60 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <div className="space-y-5">
+            <div>
+              <div className="flex justify-between items-end mb-2">
+                <label className="text-[10px] uppercase text-white/40 font-bold tracking-widest">Detail Density</label>
+                <span className="text-[10px] font-mono text-purple-400">{maxIterations}</span>
+              </div>
               <input 
                 type="range" 
-                min="50" 
-                max="3000" 
-                step="50"
+                min="100" 
+                max="10000" 
+                step="100"
                 value={maxIterations} 
                 onChange={(e) => setMaxIterations(parseInt(e.target.value))}
-                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                onMouseDown={stopEvent}
+                className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500"
               />
-              <div className="flex justify-between text-[10px] mt-1 text-white/60">
-                <span>Fast</span>
-                <span>{maxIterations}</span>
-                <span>Deep</span>
-              </div>
             </div>
 
             <div className="relative" ref={paletteRef}>
-              <label className="text-[10px] uppercase text-white/40 block mb-1">Color Palette</label>
+              <label className="text-[10px] uppercase text-white/40 block mb-2 font-bold tracking-widest">Aesthetic Scheme</label>
               <button
-                onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-sm focus:outline-none hover:bg-white/10 transition-all flex items-center justify-between"
+                onClick={(e) => { e.stopPropagation(); setIsPaletteOpen(!isPaletteOpen); }}
+                onMouseDown={stopEvent}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none hover:bg-white/10 transition-all flex items-center justify-between"
               >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-3 rounded-sm border border-white/10" style={{ background: PALETTE_GRADIENTS[palette] }}></div>
-                  <span>{palette.charAt(0).toUpperCase() + palette.slice(1)}</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-4 rounded-md border border-white/20 shadow-inner" style={{ background: PALETTE_GRADIENTS[palette] }}></div>
+                  <span className="font-medium text-white/90">{palette.charAt(0).toUpperCase() + palette.slice(1)}</span>
                 </div>
-                <svg className={`w-4 h-4 transition-transform ${isPaletteOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className={`w-4 h-4 text-white/40 transition-transform ${isPaletteOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
               {isPaletteOpen && (
-                <div className="absolute top-full mt-2 w-full bg-zinc-900/95 border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
+                <div className="absolute top-full mt-2 w-full bg-zinc-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-y-auto max-h-[30vh] lg:max-h-[40vh] no-scrollbar backdrop-blur-2xl">
                   {Object.values(PaletteType).map((p) => (
                     <button
                       key={p}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setPalette(p);
                         setIsPaletteOpen(false);
                       }}
-                      className={`w-full flex items-center gap-3 px-3 py-2 text-xs hover:bg-white/10 transition-colors ${palette === p ? 'bg-white/5 text-purple-400' : 'text-white/70'}`}
+                      onMouseDown={stopEvent}
+                      className={`w-full flex items-center gap-4 px-4 py-3 text-xs hover:bg-white/10 transition-colors ${palette === p ? 'bg-purple-500/20 text-purple-300' : 'text-white/60'}`}
                     >
-                      <div className="w-10 h-3 rounded-sm border border-white/10" style={{ background: PALETTE_GRADIENTS[p] }}></div>
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                      <div className="w-12 h-3.5 rounded-sm border border-white/10" style={{ background: PALETTE_GRADIENTS[p] }}></div>
+                      <span className="font-bold">{p.charAt(0).toUpperCase() + p.slice(1)}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="pt-2 border-t border-white/10">
-              <div className="text-[10px] uppercase text-white/40 mb-2 font-bold tracking-widest">Capture & Export</div>
-              <button 
-                onClick={handleExport8K}
-                disabled={isExporting}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-bold transition-all shadow-lg active:scale-95 group"
-              >
-                {isExporting ? (
-                  <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 text-white/80 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                )}
-                {isExporting ? 'Generating 8K...' : 'Download 8K Snapshot'}
-              </button>
-              <p className="text-[9px] text-white/30 text-center mt-2 italic">Lossless PNG Export • 7680x4320</p>
+            {/* Palette Cycles Slider */}
+            <div>
+              <div className="flex justify-between items-end mb-2">
+                <label className="text-[10px] uppercase text-white/40 font-bold tracking-widest">Palette Cycles</label>
+                <span className="text-[10px] font-mono text-pink-400">{paletteRepeat.toFixed(1)}x</span>
+              </div>
+              <input 
+                type="range" 
+                min="0.1" 
+                max="20" 
+                step="0.1"
+                value={paletteRepeat} 
+                onChange={(e) => setPaletteRepeat(parseFloat(e.target.value))}
+                onMouseDown={stopEvent}
+                className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-pink-500"
+              />
             </div>
 
-            <div className="pt-2 border-t border-white/10">
-              <div className="text-[10px] uppercase text-white/40 mb-2 font-bold tracking-widest">View Center</div>
-              <div className="grid grid-cols-2 gap-2 font-mono text-[10px]">
-                <div className="bg-white/5 p-2 rounded truncate" title={viewport.x.toString()}>Re: {viewport.x.toFixed(8)}</div>
-                <div className="bg-white/5 p-2 rounded truncate" title={viewport.y.toString()}>Im: {viewport.y.toFixed(8)}</div>
-                <div className="bg-white/5 p-2 rounded col-span-2 truncate">Zoom: {viewport.zoom.toExponential(4)}</div>
+            {/* Scale & Navigation Status */}
+            <div className="pt-4 border-t border-white/10">
+              <div className="text-[10px] uppercase text-white/40 mb-3 font-bold tracking-widest">Scale & Navigation</div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 shadow-inner">
+                  <span className="text-[9px] text-blue-300/60 uppercase font-black tracking-tighter">Zoom</span>
+                  <span className="text-[10px] font-mono text-white tracking-widest">{viewport.zoom.toExponential(4)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-blue-500/5 p-2 rounded-lg border border-white/5">
+                  <span className="text-[9px] text-white/30 uppercase font-bold">Center Re</span>
+                  <span className="text-[10px] font-mono text-white/80">{viewport.x.toExponential(6)}</span>
+                </div>
+                <div className="flex justify-between items-center bg-blue-500/5 p-2 rounded-lg border border-white/5">
+                  <span className="text-[9px] text-white/30 uppercase font-bold">Center Im</span>
+                  <span className="text-[10px] font-mono text-white/80">{viewport.y.toExponential(6)}</span>
+                </div>
               </div>
             </div>
 
             {hoverInfo && (
-              <div className="pt-2 border-t border-purple-500/20 animate-in fade-in slide-in-from-top-1">
-                <div className="text-[10px] uppercase text-purple-400 mb-2 font-bold tracking-widest">Cursor Insight</div>
-                <div className="grid grid-cols-2 gap-2 font-mono text-[10px]">
-                  <div className="bg-purple-500/10 p-2 rounded truncate">Re: {hoverInfo.re.toFixed(10)}</div>
-                  <div className="bg-purple-500/10 p-2 rounded truncate">Im: {hoverInfo.im.toFixed(10)}</div>
-                  <div className="bg-purple-500/10 p-2 rounded col-span-2 truncate font-bold text-purple-300">
-                    Iterations: {hoverInfo.iterations}
+              <div className="pt-4 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="text-[10px] uppercase text-white/40 mb-2 font-bold tracking-widest">Cursor Telemetry</div>
+                <div className="space-y-1 font-mono text-[9px]">
+                  <div className="flex justify-between bg-white/5 p-1.5 rounded">
+                    <span className="text-white/30">Re:</span>
+                    <span className="text-white/70">{hoverInfo.re.toFixed(10)}</span>
+                  </div>
+                  <div className="flex justify-between bg-white/5 p-1.5 rounded">
+                    <span className="text-white/30">Im:</span>
+                    <span className="text-white/70">{hoverInfo.im.toFixed(10)}</span>
+                  </div>
+                  <div className="flex justify-between bg-purple-500/20 p-1.5 rounded border border-purple-500/30 font-bold mt-1 shadow-[0_0_10px_rgba(168,85,247,0.1)]">
+                    <span className="text-purple-300/60 uppercase text-[8px] self-center">Iterations:</span>
+                    <span className="text-white text-[10px]">{hoverInfo.iterations}</span>
                   </div>
                 </div>
               </div>
             )}
+
+            <div className="pt-4 border-t border-white/10">
+              <button 
+                onClick={handleCapture8K}
+                onMouseDown={stopEvent}
+                disabled={isCapturing}
+                className="w-full bg-gradient-to-r from-emerald-600/20 to-teal-500/20 hover:from-emerald-600/30 hover:to-teal-500/30 border border-emerald-500/30 py-3 rounded-xl transition-all group flex items-center justify-center disabled:opacity-50 active:scale-[0.98]"
+              >
+                <svg className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <div className="text-left">
+                  <div className="text-[10px] font-black uppercase text-emerald-400 leading-none tracking-wider">Download 8K Ultra-HD</div>
+                  <div className="text-[8px] text-emerald-500/60 font-mono mt-0.5">Prioritizing Apple HEIC Format</div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Discovery Feed */}
-        <div className="pointer-events-auto w-80 max-h-[30vh] overflow-y-auto space-y-2 no-scrollbar">
-          {messages.slice().reverse().map((msg, idx) => (
-            <div key={idx} className={`p-3 rounded-lg text-sm border ${
-              msg.role === 'assistant' 
-                ? 'bg-purple-900/20 border-purple-500/30 text-purple-100 shadow-[0_0_15px_rgba(168,85,247,0.1)]' 
-                : 'bg-white/5 border-white/10 text-white/80'
-            }`}>
-              {msg.content}
-            </div>
-          ))}
+        {!isPaletteOpen && messages.length > 0 && (
+          <div 
+            className="pointer-events-auto w-full lg:w-80 max-h-[20vh] lg:max-h-[30vh] overflow-y-auto space-y-2 no-scrollbar animate-in fade-in duration-300 lg:px-0 px-5 pb-5 lg:pb-0" 
+            onMouseDown={stopEvent}
+            onMouseUp={stopEvent}
+            onClick={stopEvent}
+          >
+            {messages.slice().reverse().map((msg, idx) => (
+              <div key={idx} className={`p-4 rounded-xl text-sm border backdrop-blur-md ${
+                msg.role === 'assistant' 
+                  ? 'bg-purple-900/20 border-purple-500/30 text-purple-100 shadow-[0_0_15px_rgba(168,85,247,0.1)]' 
+                  : 'bg-white/5 border-white/10 text-white/80'
+              }`}>
+                {msg.content}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="absolute top-6 right-6 z-10 pointer-events-none hidden lg:block">
+        <div 
+          className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-xl text-[9px] uppercase tracking-widest text-white/40 space-y-1 shadow-lg pointer-events-auto" 
+          onMouseDown={stopEvent}
+          onMouseUp={stopEvent}
+          onClick={stopEvent}
+        >
+          <div className="flex justify-between gap-4"><span>Left Click</span> <span className="text-white/70">Zoom In</span></div>
+          <div className="flex justify-between gap-4"><span>Shift + Click</span> <span className="text-white/70">Zoom Out</span></div>
+          <div className="flex justify-between gap-4"><span>Scroll</span> <span className="text-white/70">Precise Zoom</span></div>
+          <div className="flex justify-between gap-4"><span>Drag</span> <span className="text-white/70">Pan</span></div>
         </div>
       </div>
 
-      {/* Bottom Command Bar */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 w-full max-w-xl px-4">
-        <form onSubmit={handleDiscovery} className="relative group">
+        <form 
+          onSubmit={handleDiscovery} 
+          className="relative group pointer-events-auto" 
+          onMouseDown={stopEvent}
+          onMouseUp={stopEvent}
+          onClick={stopEvent}
+        >
           <input
             type="text"
             placeholder="Ask Gemini to find a landmark (e.g. 'Show me Seahorse Valley')"
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            disabled={isLoading}
-            className="w-full bg-black/60 backdrop-blur-2xl border border-white/20 rounded-full py-4 pl-6 pr-32 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-white/30 group-hover:border-white/40 shadow-2xl"
+            disabled={isLoading || isCapturing}
+            className="w-full bg-black/60 backdrop-blur-2xl border border-white/20 rounded-full py-4 pl-6 pr-32 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all shadow-2xl"
           />
           <button
             type="submit"
-            disabled={isLoading || !chatInput}
-            className="absolute right-2 top-2 bottom-2 px-6 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:bg-white/10 rounded-full text-xs font-bold uppercase tracking-wider transition-colors shadow-lg"
+            disabled={isLoading || isCapturing || !chatInput}
+            className="absolute right-2 top-2 bottom-2 px-6 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-full text-xs font-bold uppercase transition-all shadow-lg active:scale-95"
           >
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-3 w-3 text-white" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Warping
-              </span>
-            ) : 'Explore'}
+            {isLoading ? 'Warping...' : 'Explore'}
           </button>
         </form>
-        <div className="flex justify-center gap-6 mt-4 text-[10px] text-white/40 uppercase tracking-widest font-medium">
-          <span>Scroll to Zoom</span>
-          <span className="w-px h-3 bg-white/20"></span>
-          <span>Click & Drag to Pan</span>
-          <span className="w-px h-3 bg-white/20"></span>
-          <span>AI Navigation</span>
-        </div>
       </div>
 
-      {/* Vignette Overlay */}
       <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-white/10 shadow-[inset_0_0_180px_rgba(0,0,0,0.9)]"></div>
     </div>
   );
