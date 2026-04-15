@@ -1,9 +1,9 @@
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import MandelbrotCanvas, { MandelbrotCanvasHandle } from './components/MandelbrotCanvas';
 import { Viewport, PaletteType, Discovery, ChatMessage } from './types';
 import { getDiscoveryInfo } from './services/geminiService';
 
+// CSS-Gradients für die Vorschau-Swatches im Palette-Dropdown
 const PALETTE_GRADIENTS: Record<PaletteType, string> = {
   [PaletteType.FIRE]: 'linear-gradient(to right, #000, #ff4d00, #ffcc00, #fff)',
   [PaletteType.ULTRAVIOLET]: 'linear-gradient(to right, #6d28d9, #f472b6, #38bdf8)',
@@ -29,21 +29,34 @@ const PALETTE_GRADIENTS: Record<PaletteType, string> = {
 };
 
 const App: React.FC = () => {
+  // Aktueller Ausschnitt der komplexen Zahlenebene
   const [viewport, setViewport] = useState<Viewport>({ x: -0.5, y: 0, zoom: 1 });
+  // Maximale Iterationstiefe: mehr = feineres Detail, aber langsameres Rendering
   const [maxIterations, setMaxIterations] = useState(250);
+  // Aktive Farbpalette
   const [palette, setPalette] = useState<PaletteType>(PaletteType.FIRE);
+  // Wie oft die Palette über den Iterationsraum wiederholt wird
   const [paletteRepeat, setPaletteRepeat] = useState(1);
+  // Eingabefeld für die Gemini-Suche
   const [chatInput, setChatInput] = useState('');
+  // Ladezustand während Gemini-Anfrage
   const [isLoading, setIsLoading] = useState(false);
+  // Ladezustand während 8K-Capture (Render dauert länger)
   const [isCapturing, setIsCapturing] = useState(false);
+  // Liste der Chat-Nachrichten (Nutzer + Assistent)
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Koordinaten und Iterationszahl unter dem Mauszeiger
   const [hoverInfo, setHoverInfo] = useState<{ re: number; im: number; iterations: number } | null>(null);
+  // Steuerung des Palette-Dropdowns
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  // Mobile: Controls-Panel ein-/ausblenden
   const [isControlsVisible, setIsControlsVisible] = useState(false);
   
   const paletteRef = useRef<HTMLDivElement>(null);
+  // Ref auf den Canvas für den 8K-Export
   const canvasHandleRef = useRef<MandelbrotCanvasHandle>(null);
 
+  // Palette-Dropdown schließen, wenn außerhalb geklickt wird
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (paletteRef.current && !paletteRef.current.contains(event.target as Node)) {
@@ -54,19 +67,24 @@ const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Viewport-Update vom Canvas entgegennehmen (Zoom/Pan)
   const handleViewChange = useCallback((newView: Viewport) => {
     setViewport(newView);
   }, []);
 
+  // Verhindert, dass Klicks auf UI-Elemente den Canvas-Zoom auslösen
   const stopEvent = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
+  // Zoom halbieren (Zoom-Out-Button)
   const handleZoomOut = (e: React.MouseEvent) => {
     stopEvent(e);
     setViewport(prev => ({ ...prev, zoom: prev.zoom * 0.5 }));
   };
 
+  /** Rendert den aktuellen Viewport in 8K-Auflösung und lädt das Bild herunter.
+   *  Bevorzugt Apple HEIC, fällt auf PNG zurück wenn der Browser kein HEIC unterstützt. */
   const handleCapture8K = async (e: React.MouseEvent) => {
     stopEvent(e);
     if (!canvasHandleRef.current) return;
@@ -76,6 +94,7 @@ const App: React.FC = () => {
       const isHeic = blob.type.includes('heic') || blob.type.includes('heif');
       const extension = isHeic ? 'heic' : 'png';
       
+      // Download über temporären Anchor-Link auslösen
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -98,6 +117,7 @@ const App: React.FC = () => {
     }
   };
 
+  /** Schickt die Nutzeranfrage an Gemini und springt zum gefundenen Mandelbrot-Punkt. */
   const handleDiscovery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -107,9 +127,11 @@ const App: React.FC = () => {
     setChatInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
 
+    // Gemini gibt Koordinaten + Beschreibung zurück
     const discovery = await getDiscoveryInfo(userMsg, viewport);
     
     if (discovery) {
+      // Viewport direkt auf die entdeckte Koordinate setzen
       setViewport({ x: discovery.x, y: discovery.y, zoom: discovery.zoom });
       setMessages(prev => [...prev, { 
         role: 'assistant', 
@@ -126,6 +148,7 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black text-white selection:bg-purple-500/30">
+      {/* Mandelbrot-Canvas nimmt den gesamten Bildschirm ein */}
       <MandelbrotCanvas 
         ref={canvasHandleRef}
         viewport={viewport} 
@@ -136,6 +159,7 @@ const App: React.FC = () => {
         onHover={setHoverInfo}
       />
 
+      {/* Vollbild-Overlay während 8K-Rendering */}
       {isCapturing && (
         <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-500">
           <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
@@ -144,7 +168,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile Control Toggle */}
+      {/* Mobile: Button zum Einblenden des Controls-Panels */}
       {!isControlsVisible && (
         <button
           onClick={() => setIsControlsVisible(true)}
@@ -157,6 +181,7 @@ const App: React.FC = () => {
         </button>
       )}
 
+      {/* Linkes Steuerungspanel (Desktop: fixiert, Mobile: einfahrbar) */}
       <div className={`absolute top-0 lg:top-6 left-0 lg:left-6 z-30 h-full lg:h-auto w-full lg:w-80 space-y-4 pointer-events-none transition-transform duration-300 ${isControlsVisible ? 'translate-x-0' : 'max-lg:-translate-x-full'}`}>
         <div 
           className="pointer-events-auto bg-black/90 lg:bg-black/70 backdrop-blur-2xl lg:backdrop-blur-xl border-r lg:border border-white/10 p-5 lg:rounded-2xl shadow-2xl h-full lg:h-auto w-full lg:w-80 overflow-y-auto lg:overflow-visible no-scrollbar" 
@@ -193,6 +218,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="space-y-5">
+            {/* Iterations-Slider: bestimmt die Detailtiefe des Fraktals */}
             <div>
               <div className="flex justify-between items-end mb-2">
                 <label className="text-[10px] uppercase text-white/40 font-bold tracking-widest">Detail Density</label>
@@ -210,6 +236,7 @@ const App: React.FC = () => {
               />
             </div>
 
+            {/* Palette-Dropdown mit Farbvorschau */}
             <div className="relative" ref={paletteRef}>
               <label className="text-[10px] uppercase text-white/40 block mb-2 font-bold tracking-widest">Aesthetic Scheme</label>
               <button
@@ -226,6 +253,7 @@ const App: React.FC = () => {
                 </svg>
               </button>
 
+              {/* Scrollbare Paletten-Liste */}
               {isPaletteOpen && (
                 <div className="absolute top-full mt-2 w-full bg-zinc-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-y-auto max-h-[30vh] lg:max-h-[40vh] no-scrollbar backdrop-blur-2xl">
                   {Object.values(PaletteType).map((p) => (
@@ -247,7 +275,7 @@ const App: React.FC = () => {
               )}
             </div>
 
-            {/* Palette Cycles Slider */}
+            {/* Palette Cycles Slider: steuert wie oft die Palette über den Farbverlauf wiederholt wird */}
             <div>
               <div className="flex justify-between items-end mb-2">
                 <label className="text-[10px] uppercase text-white/40 font-bold tracking-widest">Palette Cycles</label>
@@ -265,7 +293,7 @@ const App: React.FC = () => {
               />
             </div>
 
-            {/* Scale & Navigation Status */}
+            {/* Anzeige des aktuellen Viewports (Zoom, Realteil, Imaginärteil) */}
             <div className="pt-4 border-t border-white/10">
               <div className="text-[10px] uppercase text-white/40 mb-3 font-bold tracking-widest">Scale & Navigation</div>
               <div className="space-y-1.5">
@@ -284,6 +312,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            {/* Cursor-Telemetrie: zeigt komplexe Koordinate und Iterations-Count unter dem Mauszeiger */}
             {hoverInfo && (
               <div className="pt-4 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="text-[10px] uppercase text-white/40 mb-2 font-bold tracking-widest">Cursor Telemetry</div>
@@ -304,6 +333,7 @@ const App: React.FC = () => {
               </div>
             )}
 
+            {/* 8K-Export: rendert Offscreen-Canvas in 7680×4320 und lädt es herunter */}
             <div className="pt-4 border-t border-white/10">
               <button 
                 onClick={handleCapture8K}
@@ -323,6 +353,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        {/* Chat-Verlauf (neueste Nachrichten oben) */}
         {!isPaletteOpen && messages.length > 0 && (
           <div 
             className="pointer-events-auto w-full lg:w-80 max-h-[20vh] lg:max-h-[30vh] overflow-y-auto space-y-2 no-scrollbar animate-in fade-in duration-300 lg:px-0 px-5 pb-5 lg:pb-0" 
@@ -343,6 +374,7 @@ const App: React.FC = () => {
         )}
       </div>
 
+      {/* Tastenkürzel-Hilfe (nur Desktop) */}
       <div className="absolute top-6 right-6 z-10 pointer-events-none hidden lg:block">
         <div 
           className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-xl text-[9px] uppercase tracking-widest text-white/40 space-y-1 shadow-lg pointer-events-auto" 
@@ -357,6 +389,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
+      {/* Gemini-Suchleiste (unten mittig) */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 w-full max-w-xl px-4">
         <form 
           onSubmit={handleDiscovery} 
@@ -383,6 +416,7 @@ const App: React.FC = () => {
         </form>
       </div>
 
+      {/* Dezente Vignette-Abdunkelung an den Rändern des Canvas */}
       <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-white/10 shadow-[inset_0_0_180px_rgba(0,0,0,0.9)]"></div>
     </div>
   );
